@@ -139,8 +139,8 @@ func TestCopy(t *testing.T) {
 	entry.SeverityText = "ok"
 	entry.Timestamp = time.Time{}
 	entry.Body = "test"
-	entry.Attributes = map[string]string{"label": "value"}
-	entry.Resource = map[string]string{"resource": "value"}
+	entry.Attributes = map[string]interface{}{"label": "value"}
+	entry.Resource = map[string]interface{}{"resource": "value"}
 	entry.TraceId = []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}
 	entry.SpanId = []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
 	entry.TraceFlags = []byte{0x01}
@@ -150,8 +150,8 @@ func TestCopy(t *testing.T) {
 	entry.SeverityText = "1"
 	entry.Timestamp = time.Now()
 	entry.Body = "new"
-	entry.Attributes = map[string]string{"label": "new value"}
-	entry.Resource = map[string]string{"resource": "new value"}
+	entry.Attributes = map[string]interface{}{"label": "new value"}
+	entry.Resource = map[string]interface{}{"resource": "new value"}
 	entry.TraceId[0] = 0xff
 	entry.SpanId[0] = 0xff
 	entry.TraceFlags[0] = 0xff
@@ -159,8 +159,8 @@ func TestCopy(t *testing.T) {
 	require.Equal(t, time.Time{}, copy.Timestamp)
 	require.Equal(t, Severity(0), copy.Severity)
 	require.Equal(t, "ok", copy.SeverityText)
-	require.Equal(t, map[string]string{"label": "value"}, copy.Attributes)
-	require.Equal(t, map[string]string{"resource": "value"}, copy.Resource)
+	require.Equal(t, map[string]interface{}{"label": "value"}, copy.Attributes)
+	require.Equal(t, map[string]interface{}{"resource": "value"}, copy.Resource)
 	require.Equal(t, "test", copy.Body)
 	require.Equal(t, []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}, copy.TraceId)
 	require.Equal(t, []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, copy.SpanId)
@@ -176,8 +176,8 @@ func TestCopyNil(t *testing.T) {
 	entry.SeverityText = "1"
 	entry.Timestamp = time.Now()
 	entry.Body = "new"
-	entry.Attributes = map[string]string{"label": "new value"}
-	entry.Resource = map[string]string{"resource": "new value"}
+	entry.Attributes = map[string]interface{}{"label": "new value"}
+	entry.Resource = map[string]interface{}{"resource": "new value"}
 	entry.TraceId = []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}
 	entry.SpanId = []byte{0x04, 0x05, 0x06, 0x07, 0x08, 0x00, 0x01, 0x02, 0x03}
 	entry.TraceFlags = []byte{0x01}
@@ -185,8 +185,8 @@ func TestCopyNil(t *testing.T) {
 	require.Equal(t, time.Time{}, copy.Timestamp)
 	require.Equal(t, Severity(0), copy.Severity)
 	require.Equal(t, "", copy.SeverityText)
-	require.Equal(t, map[string]string{}, copy.Attributes)
-	require.Equal(t, map[string]string{}, copy.Resource)
+	require.Equal(t, map[string]interface{}{}, copy.Attributes)
+	require.Equal(t, map[string]interface{}{}, copy.Resource)
 	require.Equal(t, nil, copy.Body)
 	require.Equal(t, []byte{}, copy.TraceId)
 	require.Equal(t, []byte{}, copy.SpanId)
@@ -248,14 +248,14 @@ func TestFieldFromString(t *testing.T) {
 func TestAddAttribute(t *testing.T) {
 	entry := Entry{}
 	entry.AddAttribute("label", "value")
-	expected := map[string]string{"label": "value"}
+	expected := map[string]interface{}{"label": "value"}
 	require.Equal(t, expected, entry.Attributes)
 }
 
 func TestAddResourceKey(t *testing.T) {
 	entry := Entry{}
 	entry.AddResourceKey("key", "value")
-	expected := map[string]string{"key": "value"}
+	expected := map[string]interface{}{"key": "value"}
 	require.Equal(t, expected, entry.Resource)
 }
 

@@ -22,10 +22,10 @@ import (
 	"sync"
 	"testing"
 
+	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/open-telemetry/opentelemetry-log-collection/logger"
 	"github.com/open-telemetry/opentelemetry-log-collection/operator"
 )
 
@@ -46,12 +46,9 @@ func NewTempDir(t testing.TB) string {
 	return tempDir
 }
 
-// NewBuildContext will return a new build context for testing
-func NewBuildContext(t testing.TB) operator.BuildContext {
-	return operator.BuildContext{
-		Logger:    logger.New(zaptest.NewLogger(t, zaptest.Level(zapcore.ErrorLevel)).Sugar()),
-		Namespace: "$",
-	}
+// Logger will return a new tesst logger
+func Logger(t testing.TB) *zap.SugaredLogger {
+	return zaptest.NewLogger(t, zaptest.Level(zapcore.ErrorLevel)).Sugar()
 }
 
 type mockPersister struct {

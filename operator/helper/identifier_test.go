@@ -24,8 +24,8 @@ import (
 )
 
 func TestIdentifier(t *testing.T) {
-	os.Setenv("TEST_METADATA_PLUGIN_ENV", "foo")
-	defer os.Unsetenv("TEST_METADATA_PLUGIN_ENV")
+	os.Setenv("TEST_METADATA_OPERATOR_ENV", "foo")
+	defer os.Unsetenv("TEST_METADATA_OPERATOR_ENV")
 
 	cases := []struct {
 		name     string
@@ -45,7 +45,7 @@ func TestIdentifier(t *testing.T) {
 			entry.New(),
 			func() *entry.Entry {
 				e := entry.New()
-				e.Resource = map[string]string{
+				e.Resource = map[string]interface{}{
 					"key1": "value1",
 				}
 				return e
@@ -63,7 +63,7 @@ func TestIdentifier(t *testing.T) {
 			entry.New(),
 			func() *entry.Entry {
 				e := entry.New()
-				e.Resource = map[string]string{
+				e.Resource = map[string]interface{}{
 					"key1": "startend",
 				}
 				return e
@@ -74,14 +74,14 @@ func TestIdentifier(t *testing.T) {
 			func() IdentifierConfig {
 				cfg := NewIdentifierConfig()
 				cfg.Resource = map[string]ExprStringConfig{
-					"key1": `EXPR(env("TEST_METADATA_PLUGIN_ENV"))`,
+					"key1": `EXPR(env("TEST_METADATA_OPERATOR_ENV"))`,
 				}
 				return cfg
 			}(),
 			entry.New(),
 			func() *entry.Entry {
 				e := entry.New()
-				e.Resource = map[string]string{
+				e.Resource = map[string]interface{}{
 					"key1": "foo",
 				}
 				return e

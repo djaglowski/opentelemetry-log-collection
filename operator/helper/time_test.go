@@ -26,7 +26,6 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/open-telemetry/opentelemetry-log-collection/entry"
-	"github.com/open-telemetry/opentelemetry-log-collection/testutil"
 )
 
 func Test_setTimestampYear(t *testing.T) {
@@ -315,6 +314,13 @@ func TestTimeParser(t *testing.T) {
 			strptimeLayout: "%Y-%m-%dT%H:%M:%S.%LZ",
 			location:       hst.String(),
 		},
+		{
+			name:           "1970",
+			sample:         "1970-12-16T21:43:28.391Z",
+			expected:       time.Date(1970, 12, 16, 21, 43, 28, 391*1000*1000, time.UTC),
+			gotimeLayout:   "2006-01-02T15:04:05.999Z",
+			strptimeLayout: "%Y-%m-%dT%H:%M:%S.%LZ",
+		},
 	}
 
 	rootField := entry.NewBodyField()
@@ -579,9 +585,7 @@ func runTimeParseTest(timeParser *TimeParser, ent *entry.Entry, buildErr bool, p
 
 func runLossyTimeParseTest(timeParser *TimeParser, ent *entry.Entry, buildErr bool, parseErr bool, expected time.Time, maxLoss time.Duration) func(*testing.T) {
 	return func(t *testing.T) {
-		buildContext := testutil.NewBuildContext(t)
-
-		err := timeParser.Validate(buildContext)
+		err := timeParser.Validate()
 		if buildErr {
 			require.Error(t, err, "expected error when validating config")
 			return
@@ -678,7 +682,7 @@ func TestGoldenTimeParserConfig(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run("yaml/"+tc.name, func(t *testing.T) {
-			cfgFromYaml, yamlErr := timeConfigFromFileViaYaml(path.Join(".", "timetestdata", fmt.Sprintf("%s.yaml", tc.name)))
+			cfgFromYaml, yamlErr := timeConfigFromFileViaYaml(path.Join(".", "testdata", "time", fmt.Sprintf("%s.yaml", tc.name)))
 			if tc.expectErr {
 				require.Error(t, yamlErr)
 			} else {
@@ -689,7 +693,7 @@ func TestGoldenTimeParserConfig(t *testing.T) {
 		t.Run("mapstructure/"+tc.name, func(t *testing.T) {
 			cfgFromMapstructure := defaultTimeCfg()
 			mapErr := timeConfigFromFileViaMapstructure(
-				path.Join(".", "timetestdata", fmt.Sprintf("%s.yaml", tc.name)),
+				path.Join(".", "testdata", "time", fmt.Sprintf("%s.yaml", tc.name)),
 				cfgFromMapstructure,
 			)
 			if tc.expectErr {

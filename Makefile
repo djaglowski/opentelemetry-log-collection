@@ -8,15 +8,15 @@ ALL_MODULES := $(shell find . -type f -name "go.mod" -exec dirname {} \; | sort 
 ALL_SRC := $(shell find . -name '*.go' -type f | sort)
 ADDLICENSE=addlicense
 ALL_COVERAGE_MOD_DIRS := $(shell find . -type f -name 'go.mod' -exec dirname {} \; | egrep -v '^./internal/tools' | sort)
-FIELDALIGNMENT_DIRS := ./agent/ ./pipeline/
+FIELDALIGNMENT_DIRS := ./pipeline/
 
 TOOLS_MOD_DIR := ./internal/tools
 .PHONY: install-tools
 install-tools:
-	cd $(TOOLS_MOD_DIR) && go install github.com/golangci/golangci-lint/cmd/golangci-lint
+	cd $(TOOLS_MOD_DIR) && go install github.com/securego/gosec/v2/cmd/gosec@v2.9.6
+	cd $(TOOLS_MOD_DIR) && go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.43.0
 	cd $(TOOLS_MOD_DIR) && go install github.com/vektra/mockery/cmd/mockery
 	cd $(TOOLS_MOD_DIR) && go install github.com/google/addlicense
-	cd $(TOOLS_MOD_DIR) && go install github.com/securego/gosec/v2/cmd/gosec
 	cd $(TOOLS_MOD_DIR) && go install golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment
 
 .PHONY: test
@@ -51,8 +51,14 @@ clean:
 .PHONY: tidy
 tidy:
 	$(MAKE) for-all CMD="rm -fr go.sum"
-	$(MAKE) for-all CMD="go mod tidy -go=1.16"
-	$(MAKE) for-all CMD="go mod tidy -go=1.17"
+	$(MAKE) for-all CMD="go mod tidy -compat=1.17"
+
+.PHONY: mod-update-only
+mod-update-only:
+	$(MAKE) for-all CMD="go get -u ./..."
+
+.PHONY: mod-update
+mod-update: mod-update-only tidy
 
 .PHONY: listmod
 listmod:

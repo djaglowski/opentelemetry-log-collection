@@ -15,42 +15,121 @@
 package pipeline
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/open-telemetry/opentelemetry-log-collection/operator"
-	"github.com/open-telemetry/opentelemetry-log-collection/operator/builtin/parser/json"
-	"github.com/open-telemetry/opentelemetry-log-collection/operator/builtin/transformer/copy"
+	"github.com/open-telemetry/opentelemetry-log-collection/operator/parser/json"
+	"github.com/open-telemetry/opentelemetry-log-collection/operator/transformer/copy"
+	"github.com/open-telemetry/opentelemetry-log-collection/operator/transformer/noop"
 	"github.com/open-telemetry/opentelemetry-log-collection/testutil"
 )
 
-func newDummyJSON(dummyID string) operator.Config {
-	return operator.Config{Builder: json.NewJSONParserConfig(dummyID)}
+func TestBuildPipelineSuccess(t *testing.T) {
+	cfg := Config{
+		Operators: []operator.Config{
+			{
+				Builder: noop.NewNoopOperatorConfig("noop"),
+			},
+		},
+	}
+
+	pipe, err := cfg.Build(testutil.Logger(t))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(pipe.Operators()))
 }
 
-func newDummyCopy(dummyID string) operator.Config {
-	return operator.Config{Builder: copy.NewCopyOperatorConfig(dummyID)}
+func TestBuildPipelineNoLogger(t *testing.T) {
+	cfg := Config{
+		Operators: []operator.Config{
+			{
+				Builder: noop.NewNoopOperatorConfig("noop"),
+			},
+		},
+	}
+
+	pipe, err := cfg.Build(nil)
+	require.EqualError(t, err, "logger must be provided")
+	require.Nil(t, pipe)
 }
 
-type deduplicateTestCase struct {
-	name        string
-	ops         func() Config
-	expectedOps Config
+func TestBuildPipelineNilOperators(t *testing.T) {
+	cfg := Config{}
+
+	pipe, err := cfg.Build(testutil.Logger(t))
+	require.EqualError(t, err, "operators must be specified")
+	require.Nil(t, pipe)
+}
+
+func TestBuildPipelineEmptyOperators(t *testing.T) {
+	cfg := Config{
+		Operators: []operator.Config{},
+	}
+
+	pipe, err := cfg.Build(testutil.Logger(t))
+	require.EqualError(t, err, "empty pipeline not allowed")
+	require.Nil(t, pipe)
+}
+
+func TestBuildAPipelineDefaultOperator(t *testing.T) {
+	cfg := Config{
+		Operators: []operator.Config{
+			{
+				Builder: noop.NewNoopOperatorConfig("noop"),
+			},
+			{
+				Builder: noop.NewNoopOperatorConfig("noop1"),
+			},
+		},
+		DefaultOutput: testutil.NewFakeOutput(t),
+	}
+
+	pipe, err := cfg.Build(testutil.Logger(t))
+	require.NoError(t, err)
+
+	ops := pipe.Operators()
+	require.Equal(t, 3, len(ops))
+
+	exists := make(map[string]bool)
+
+	for _, op := range ops {
+		switch op.ID() {
+		case "noop":
+			require.Equal(t, 1, len(op.GetOutputIDs()))
+			require.Equal(t, "noop1", op.GetOutputIDs()[0])
+			exists["noop"] = true
+		case "noop1":
+			require.Equal(t, 1, len(op.GetOutputIDs()))
+			require.Equal(t, "fake", op.GetOutputIDs()[0])
+			exists["noop1"] = true
+		case "fake":
+			require.Equal(t, 0, len(op.GetOutputIDs()))
+			exists["fake"] = true
+		}
+	}
+	require.True(t, exists["noop"])
+	require.True(t, exists["noop1"])
+	require.True(t, exists["fake"])
 }
 
 func TestDeduplicateIDs(t *testing.T) {
-	cases := []deduplicateTestCase{
+	cases := []struct {
+		name        string
+		ops         func() []operator.Config
+		expectedOps []operator.Config
+	}{
 		{
 			"one_op_rename",
-			func() Config {
-				var ops Config
+			func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser"))
 				return ops
 			},
-			func() Config {
-				var ops Config
+			func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser1"))
 				return ops
@@ -58,8 +137,8 @@ func TestDeduplicateIDs(t *testing.T) {
 		},
 		{
 			"multi_op_rename",
-			func() Config {
-				var ops Config
+			func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser"))
@@ -68,8 +147,8 @@ func TestDeduplicateIDs(t *testing.T) {
 
 				return ops
 			},
-			func() Config {
-				var ops Config
+			func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser1"))
 				ops = append(ops, newDummyJSON("json_parser2"))
@@ -80,18 +159,17 @@ func TestDeduplicateIDs(t *testing.T) {
 		},
 		{
 			"different_ops",
-			func() Config {
-				var ops Config
+			func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyCopy("copy"))
 				ops = append(ops, newDummyCopy("copy"))
-
 				return ops
 			},
-			func() Config {
-				var ops Config
+			func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser1"))
 				ops = append(ops, newDummyJSON("json_parser2"))
@@ -102,8 +180,8 @@ func TestDeduplicateIDs(t *testing.T) {
 		},
 		{
 			"unordered",
-			func() Config {
-				var ops Config
+			func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyCopy("copy"))
 				ops = append(ops, newDummyJSON("json_parser"))
@@ -111,8 +189,8 @@ func TestDeduplicateIDs(t *testing.T) {
 				ops = append(ops, newDummyJSON("json_parser"))
 				return ops
 			},
-			func() Config {
-				var ops Config
+			func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyCopy("copy"))
 				ops = append(ops, newDummyJSON("json_parser1"))
@@ -123,8 +201,8 @@ func TestDeduplicateIDs(t *testing.T) {
 		},
 		{
 			"already_renamed",
-			func() Config {
-				var ops Config
+			func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser"))
@@ -132,8 +210,8 @@ func TestDeduplicateIDs(t *testing.T) {
 				ops = append(ops, newDummyJSON("json_parser"))
 				return ops
 			},
-			func() Config {
-				var ops Config
+			func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser1"))
 				ops = append(ops, newDummyJSON("json_parser2"))
@@ -144,8 +222,8 @@ func TestDeduplicateIDs(t *testing.T) {
 		},
 		{
 			"iterate_twice",
-			func() Config {
-				var ops Config
+			func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser3"))
@@ -153,8 +231,8 @@ func TestDeduplicateIDs(t *testing.T) {
 				ops = append(ops, newDummyJSON("json_parser"))
 				return ops
 			},
-			func() Config {
-				var ops Config
+			func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser1"))
 				ops = append(ops, newDummyJSON("json_parser3"))
@@ -168,52 +246,55 @@ func TestDeduplicateIDs(t *testing.T) {
 	for _, tc := range cases {
 		t.Run("Deduplicate/"+tc.name, func(t *testing.T) {
 			ops := tc.ops()
-			ops.dedeplucateIDs()
+			dedeplucateIDs(ops)
 			require.Equal(t, ops, tc.expectedOps)
 		})
 	}
 }
 
-type outputTestCase struct {
-	name            string
-	ops             func() Config
-	expectedOutputs []string
-}
-
 func TestUpdateOutputIDs(t *testing.T) {
-	cases := []outputTestCase{
+	cases := []struct {
+		defaultOut operator.Operator
+		ops        func() []operator.Config
+		outMap     map[string][]string
+		name       string
+	}{
 		{
-			"one_op_rename",
-			func() Config {
-				var ops Config
+			name: "one_op_rename",
+			ops: func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser"))
 				return ops
 			},
-			[]string{
-				"$.json_parser1",
+			outMap: map[string][]string{
+				"json_parser":  {"json_parser1"},
+				"json_parser1": nil,
 			},
+			defaultOut: nil,
 		},
 		{
-			"multi_op_rename",
-			func() Config {
-				var ops Config
+			name: "multi_op_rename",
+			ops: func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser"))
 				return ops
 			},
-			[]string{
-				"$.json_parser1",
-				"$.json_parser2",
-				"$.json_parser3",
+			outMap: map[string][]string{
+				"json_parser":  {"json_parser1"},
+				"json_parser1": {"json_parser2"},
+				"json_parser2": {"json_parser3"},
+				"json_parser3": nil,
 			},
+			defaultOut: nil,
 		},
 		{
-			"different_ops",
-			func() Config {
-				var ops Config
+			name: "different_ops",
+			ops: func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser"))
@@ -221,33 +302,37 @@ func TestUpdateOutputIDs(t *testing.T) {
 				ops = append(ops, newDummyCopy("copy"))
 				return ops
 			},
-			[]string{
-				"$.json_parser1",
-				"$.json_parser2",
-				"$.copy",
-				"$.copy1",
+			outMap: map[string][]string{
+				"json_parser":  {"json_parser1"},
+				"json_parser1": {"json_parser2"},
+				"json_parser2": {"copy"},
+				"copy":         {"copy1"},
+				"copy1":        nil,
 			},
+			defaultOut: nil,
 		},
 		{
-			"unordered",
-			func() Config {
-				var ops Config
+			name: "unordered",
+			ops: func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyCopy("copy"))
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyCopy("copy"))
 				return ops
 			},
-			[]string{
-				"$.copy",
-				"$.json_parser1",
-				"$.copy1",
+			outMap: map[string][]string{
+				"json_parser":  {"copy"},
+				"copy":         {"json_parser1"},
+				"json_parser1": {"copy1"},
+				"copy1":        nil,
 			},
+			defaultOut: nil,
 		},
 		{
-			"already_renamed",
-			func() Config {
-				var ops Config
+			name: "already_renamed",
+			ops: func() []operator.Config {
+				ops := []operator.Config{}
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser"))
 				ops = append(ops, newDummyJSON("json_parser"))
@@ -255,24 +340,67 @@ func TestUpdateOutputIDs(t *testing.T) {
 				ops = append(ops, newDummyJSON("json_parser"))
 				return ops
 			},
-			[]string{
-				"$.json_parser1",
-				"$.json_parser2",
-				"$.json_parser3",
-				"$.json_parser4",
+			outMap: map[string][]string{
+				"json_parser":  {"json_parser1"},
+				"json_parser1": {"json_parser2"},
+				"json_parser2": {"json_parser3"},
+				"json_parser3": {"json_parser4"},
+				"json_parser4": nil,
 			},
+			defaultOut: nil,
+		},
+		{
+			name: "one_op_rename",
+			ops: func() []operator.Config {
+				ops := []operator.Config{}
+				ops = append(ops, newDummyJSON("json_parser"))
+				ops = append(ops, newDummyJSON("json_parser"))
+				return ops
+			},
+			outMap: map[string][]string{
+				"json_parser":  {"json_parser1"},
+				"json_parser1": {"fake"},
+			},
+			defaultOut: testutil.NewFakeOutput(t),
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run("UpdateOutputIDs/"+tc.name, func(t *testing.T) {
-			bc := testutil.NewBuildContext(t)
-			ops, err := tc.ops().BuildOperators(bc, nil)
+			pipeline, err := Config{
+				Operators:     tc.ops(),
+				DefaultOutput: tc.defaultOut,
+			}.Build(testutil.Logger(t))
 			require.NoError(t, err)
-			require.Equal(t, len(tc.expectedOutputs), len(ops)-1)
-			for i := 0; i < len(ops)-1; i++ {
-				require.Equal(t, tc.expectedOutputs[i], ops[i].GetOutputIDs()[0])
+			ops := pipeline.Operators()
+
+			expectedNumOps := len(tc.outMap)
+			if tc.defaultOut != nil {
+				expectedNumOps++
+			}
+			require.Equal(t, expectedNumOps, len(ops))
+
+			for i := 0; i < len(ops); i++ {
+				id := ops[i].ID()
+				if id == "fake" {
+					require.Nil(t, ops[i].GetOutputIDs())
+					continue
+				}
+				expectedOuts, ok := tc.outMap[id]
+				require.True(t, ok)
+				actualOuts := ops[i].GetOutputIDs()
+				sort.Strings(expectedOuts)
+				sort.Strings(actualOuts)
+				require.Equal(t, expectedOuts, actualOuts)
 			}
 		})
 	}
+}
+
+func newDummyJSON(dummyID string) operator.Config {
+	return operator.Config{Builder: json.NewJSONParserConfig(dummyID)}
+}
+
+func newDummyCopy(dummyID string) operator.Config {
+	return operator.Config{Builder: copy.NewCopyOperatorConfig(dummyID)}
 }

@@ -24,7 +24,6 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-log-collection/entry"
 	"github.com/open-telemetry/opentelemetry-log-collection/errors"
-	"github.com/open-telemetry/opentelemetry-log-collection/operator"
 )
 
 // StrptimeKey is literally "strptime", and is the default layout type
@@ -63,7 +62,7 @@ func (t *TimeParser) IsZero() bool {
 }
 
 // Validate validates a TimeParser, and reconfigures it if necessary
-func (t *TimeParser) Validate(context operator.BuildContext) error {
+func (t *TimeParser) Validate() error {
 	if t.ParseFrom == nil {
 		return fmt.Errorf("missing required parameter 'parse_from'")
 	}
@@ -286,7 +285,7 @@ var subsecToNs = map[string]int64{"s.ms": 1e6, "s.us": 1e3, "s.ns": 1}
 // setTimestampYear sets the year of a timestamp to the current year.
 // This is needed because year is missing from some time formats, such as rfc3164.
 func setTimestampYear(t time.Time) time.Time {
-	if t.Year() > 1970 {
+	if t.Year() > 0 {
 		return t
 	}
 	n := now()

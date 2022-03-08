@@ -1,4 +1,0 @@
-type: retain
-fields:
-  - "key"
-  - "nested2"

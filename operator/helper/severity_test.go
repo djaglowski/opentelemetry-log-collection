@@ -381,15 +381,13 @@ func (tc severityTestCase) run(parseFrom entry.Field) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Parallel()
 
-		buildContext := testutil.NewBuildContext(t)
-
 		cfg := &SeverityParserConfig{
 			ParseFrom: &parseFrom,
 			Preset:    tc.mappingSet,
 			Mapping:   tc.mapping,
 		}
 
-		severityParser, err := cfg.Build(buildContext)
+		severityParser, err := cfg.Build(testutil.Logger(t))
 		if tc.buildErr {
 			require.Error(t, err, "expected error when configuring operator")
 			return
@@ -469,7 +467,7 @@ func TestGoldenSeverityParserConfig(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run("yaml/"+tc.name, func(t *testing.T) {
-			cfgFromYaml, yamlErr := severityConfigFromFileViaYaml(path.Join(".", "severitytestdata", fmt.Sprintf("%s.yaml", tc.name)))
+			cfgFromYaml, yamlErr := severityConfigFromFileViaYaml(path.Join(".", "testdata", "severity", fmt.Sprintf("%s.yaml", tc.name)))
 			if tc.expectErr {
 				require.Error(t, yamlErr)
 			} else {
@@ -480,7 +478,7 @@ func TestGoldenSeverityParserConfig(t *testing.T) {
 		t.Run("mapstructure/"+tc.name, func(t *testing.T) {
 			cfgFromMapstructure := defaultSeverityCfg()
 			mapErr := severityConfigFromFileViaMapstructure(
-				path.Join(".", "severitytestdata", fmt.Sprintf("%s.yaml", tc.name)),
+				path.Join(".", "testdata", "severity", fmt.Sprintf("%s.yaml", tc.name)),
 				cfgFromMapstructure,
 			)
 			if tc.expectErr {

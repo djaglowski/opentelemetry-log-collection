@@ -26,13 +26,12 @@ import (
 
 func TestInputConfigMissingBase(t *testing.T) {
 	config := InputConfig{
-		WriteTo: entry.Field{},
 		WriterConfig: WriterConfig{
 			OutputIDs: []string{"test-output"},
 		},
 	}
-	context := testutil.NewBuildContext(t)
-	_, err := config.Build(context)
+
+	_, err := config.Build(testutil.Logger(t))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "missing required `type` field.")
 }
@@ -45,16 +44,14 @@ func TestInputConfigMissingOutput(t *testing.T) {
 				OperatorType: "test-type",
 			},
 		},
-		WriteTo: entry.Field{},
 	}
-	context := testutil.NewBuildContext(t)
-	_, err := config.Build(context)
+
+	_, err := config.Build(testutil.Logger(t))
 	require.NoError(t, err)
 }
 
 func TestInputConfigValid(t *testing.T) {
 	config := InputConfig{
-		WriteTo: entry.Field{},
 		WriterConfig: WriterConfig{
 			BasicConfig: BasicConfig{
 				OperatorID:   "test-id",
@@ -63,19 +60,18 @@ func TestInputConfigValid(t *testing.T) {
 			OutputIDs: []string{"test-output"},
 		},
 	}
-	context := testutil.NewBuildContext(t)
-	_, err := config.Build(context)
+
+	_, err := config.Build(testutil.Logger(t))
 	require.NoError(t, err)
 }
 
 func TestInputOperatorCanProcess(t *testing.T) {
-	buildContext := testutil.NewBuildContext(t)
 	input := InputOperator{
 		WriterOperator: WriterOperator{
 			BasicOperator: BasicOperator{
 				OperatorID:    "test-id",
 				OperatorType:  "test-type",
-				SugaredLogger: buildContext.Logger.SugaredLogger,
+				SugaredLogger: testutil.Logger(t),
 			},
 		},
 	}
@@ -83,13 +79,12 @@ func TestInputOperatorCanProcess(t *testing.T) {
 }
 
 func TestInputOperatorProcess(t *testing.T) {
-	buildContext := testutil.NewBuildContext(t)
 	input := InputOperator{
 		WriterOperator: WriterOperator{
 			BasicOperator: BasicOperator{
 				OperatorID:    "test-id",
 				OperatorType:  "test-type",
-				SugaredLogger: buildContext.Logger.SugaredLogger,
+				SugaredLogger: testutil.Logger(t),
 			},
 		},
 	}
@@ -101,8 +96,7 @@ func TestInputOperatorProcess(t *testing.T) {
 }
 
 func TestInputOperatorNewEntry(t *testing.T) {
-	buildContext := testutil.NewBuildContext(t)
-	writeTo := entry.NewBodyField("test-field")
+	body := entry.NewBodyField()
 
 	labelExpr, err := ExprStringConfig("test").Build()
 	require.NoError(t, err)
@@ -125,16 +119,15 @@ func TestInputOperatorNewEntry(t *testing.T) {
 			BasicOperator: BasicOperator{
 				OperatorID:    "test-id",
 				OperatorType:  "test-type",
-				SugaredLogger: buildContext.Logger.SugaredLogger,
+				SugaredLogger: testutil.Logger(t),
 			},
 		},
-		WriteTo: writeTo,
 	}
 
 	entry, err := input.NewEntry("test")
 	require.NoError(t, err)
 
-	value, exists := entry.Get(writeTo)
+	value, exists := entry.Get(body)
 	require.True(t, exists)
 	require.Equal(t, "test", value)
 

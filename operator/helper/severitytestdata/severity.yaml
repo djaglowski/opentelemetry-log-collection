@@ -1,3 +1,0 @@
-type: severity_parser
-severity:
-  parse_from: severity_field

@@ -24,8 +24,8 @@ import (
 )
 
 func TestAttributer(t *testing.T) {
-	os.Setenv("TEST_METADATA_PLUGIN_ENV", "foo")
-	defer os.Unsetenv("TEST_METADATA_PLUGIN_ENV")
+	os.Setenv("TEST_METADATA_OPERATOR_ENV", "foo")
+	defer os.Unsetenv("TEST_METADATA_OPERATOR_ENV")
 
 	cases := []struct {
 		name     string
@@ -45,7 +45,7 @@ func TestAttributer(t *testing.T) {
 			entry.New(),
 			func() *entry.Entry {
 				e := entry.New()
-				e.Attributes = map[string]string{
+				e.Attributes = map[string]interface{}{
 					"label1": "value1",
 				}
 				return e
@@ -63,7 +63,7 @@ func TestAttributer(t *testing.T) {
 			entry.New(),
 			func() *entry.Entry {
 				e := entry.New()
-				e.Attributes = map[string]string{
+				e.Attributes = map[string]interface{}{
 					"label1": "startend",
 				}
 				return e
@@ -74,14 +74,14 @@ func TestAttributer(t *testing.T) {
 			func() AttributerConfig {
 				cfg := NewAttributerConfig()
 				cfg.Attributes = map[string]ExprStringConfig{
-					"label1": `EXPR(env("TEST_METADATA_PLUGIN_ENV"))`,
+					"label1": `EXPR(env("TEST_METADATA_OPERATOR_ENV"))`,
 				}
 				return cfg
 			}(),
 			entry.New(),
 			func() *entry.Entry {
 				e := entry.New()
-				e.Attributes = map[string]string{
+				e.Attributes = map[string]interface{}{
 					"label1": "foo",
 				}
 				return e

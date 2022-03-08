@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -28,11 +29,12 @@ type FakeBuilder struct {
 	Array        []string `json:"array" yaml:"array"`
 }
 
-func (f *FakeBuilder) Build(context BuildContext) ([]Operator, error) { return nil, nil }
-func (f *FakeBuilder) ID() string                                     { return "plugin" }
-func (f *FakeBuilder) Type() string                                   { return "plugin" }
-func (f *FakeBuilder) SetID(s string)                                 {}
-func (f *FakeBuilder) BuildsMultipleOps() bool                        { return false }
+func (f *FakeBuilder) Build(_ *zap.SugaredLogger) (Operator, error) {
+	return nil, nil
+}
+func (f *FakeBuilder) ID() string     { return "operator" }
+func (f *FakeBuilder) Type() string   { return "operator" }
+func (f *FakeBuilder) SetID(s string) {}
 
 func TestUnmarshalJSONErrors(t *testing.T) {
 	t.Cleanup(func() {
@@ -73,8 +75,8 @@ func TestUnmarshalJSONErrors(t *testing.T) {
 	})
 
 	t.Run("TypeSpecificUnmarshal", func(t *testing.T) {
-		raw := `{"id":"plugin","type":"plugin","array":"non-array-value"}`
-		Register("plugin", func() Builder { return &FakeBuilder{} })
+		raw := `{"id":"operator","type":"operator","array":"non-array-value"}`
+		Register("operator", func() Builder { return &FakeBuilder{} })
 		var cfg Config
 		err := json.Unmarshal([]byte(raw), &cfg)
 		require.Error(t, err)
@@ -85,14 +87,14 @@ func TestUnmarshalJSONErrors(t *testing.T) {
 func TestMarshalJSON(t *testing.T) {
 	cfg := Config{
 		Builder: &FakeBuilder{
-			OperatorID:   "plugin",
-			OperatorType: "plugin",
+			OperatorID:   "operator",
+			OperatorType: "operator",
 			Array:        []string{"test"},
 		},
 	}
 	out, err := json.Marshal(cfg)
 	require.NoError(t, err)
-	expected := `{"id":"plugin","type":"plugin","array":["test"]}`
+	expected := `{"id":"operator","type":"operator","array":["test"]}`
 	require.Equal(t, expected, string(out))
 }
 
@@ -115,7 +117,7 @@ func TestUnmarshalYAMLErrors(t *testing.T) {
 	})
 
 	t.Run("MissingType", func(t *testing.T) {
-		raw := "id: plugin\n"
+		raw := "id: operator\n"
 		var cfg Config
 		err := yaml.Unmarshal([]byte(raw), &cfg)
 		require.Error(t, err)
@@ -123,7 +125,7 @@ func TestUnmarshalYAMLErrors(t *testing.T) {
 	})
 
 	t.Run("NonStringType", func(t *testing.T) {
-		raw := "id: plugin\ntype: 123"
+		raw := "id: operator\ntype: 123"
 		var cfg Config
 		err := yaml.Unmarshal([]byte(raw), &cfg)
 		require.Error(t, err)
@@ -131,7 +133,7 @@ func TestUnmarshalYAMLErrors(t *testing.T) {
 	})
 
 	t.Run("UnknownType", func(t *testing.T) {
-		raw := "id: plugin\ntype: unknown\n"
+		raw := "id: operator\ntype: unknown\n"
 		var cfg Config
 		err := yaml.Unmarshal([]byte(raw), &cfg)
 		require.Error(t, err)
@@ -139,8 +141,8 @@ func TestUnmarshalYAMLErrors(t *testing.T) {
 	})
 
 	t.Run("TypeSpecificUnmarshal", func(t *testing.T) {
-		raw := "id: plugin\ntype: plugin\narray: nonarray"
-		Register("plugin", func() Builder { return &FakeBuilder{} })
+		raw := "id: operator\ntype: operator\narray: nonarray"
+		Register("operator", func() Builder { return &FakeBuilder{} })
 		var cfg Config
 		err := yaml.Unmarshal([]byte(raw), &cfg)
 		require.Error(t, err)
@@ -151,13 +153,13 @@ func TestUnmarshalYAMLErrors(t *testing.T) {
 func TestMarshalYAML(t *testing.T) {
 	cfg := Config{
 		Builder: &FakeBuilder{
-			OperatorID:   "plugin",
-			OperatorType: "plugin",
+			OperatorID:   "operator",
+			OperatorType: "operator",
 			Array:        []string{"test"},
 		},
 	}
 	out, err := yaml.Marshal(cfg)
 	require.NoError(t, err)
-	expected := "id: plugin\ntype: plugin\narray:\n- test\n"
+	expected := "id: operator\ntype: operator\narray:\n- test\n"
 	require.Equal(t, expected, string(out))
 }

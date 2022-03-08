@@ -16,46 +16,76 @@ package pipeline
 
 import (
 	"fmt"
+	"time"
 
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
+	"github.com/open-telemetry/opentelemetry-log-collection/errors"
 	"github.com/open-telemetry/opentelemetry-log-collection/operator"
 )
 
 // Config is the configuration of a pipeline.
-type Config []operator.Config
+type Config struct {
+	DefaultOutput operator.Operator
+	Operators     []operator.Config
+}
 
-// BuildOperators builds the operators from the list of configs into operators.
-func (c Config) BuildOperators(bc operator.BuildContext, defaultOperator operator.Operator) ([]operator.Operator, error) {
-	c.dedeplucateIDs()
-	// buildsMulti's key represents an operator's ID that builds multiple operators, e.g. Plugins.
-	// the value is the plugin's first operator's ID.
-	buildsMulti := make(map[string]string)
-	operators := make([]operator.Operator, 0, len(c))
-	for _, builder := range c {
-		op, err := builder.Build(bc)
+// Build will build a pipeline from the config.
+func (c Config) Build(logger *zap.SugaredLogger) (*DirectedPipeline, error) {
+	if logger == nil {
+		return nil, errors.NewError("logger must be provided", "")
+	}
+	if c.Operators == nil {
+		return nil, errors.NewError("operators must be specified", "")
+	}
+
+	if len(c.Operators) == 0 {
+		return nil, errors.NewError("empty pipeline not allowed", "")
+	}
+
+	sampledLogger := logger.Desugar().WithOptions(
+		zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+			return zapcore.NewSamplerWithOptions(core, time.Second, 1, 10000)
+		}),
+	).Sugar()
+
+	dedeplucateIDs(c.Operators)
+
+	ops := make([]operator.Operator, 0, len(c.Operators))
+	for _, opCfg := range c.Operators {
+		op, err := opCfg.Build(sampledLogger)
 		if err != nil {
 			return nil, err
 		}
+		ops = append(ops, op)
+	}
 
-		if builder.BuildsMultipleOps() {
-			buildsMulti[bc.PrependNamespace(builder.ID())] = op[0].ID()
+	for i, op := range ops {
+		// Any operator that already has an output will not be changed
+		if len(op.GetOutputIDs()) > 0 {
+			continue
 		}
-		operators = append(operators, op...)
+
+		// Any operator (except the last) will just output to the next
+		if i+1 < len(ops) {
+			op.SetOutputIDs([]string{ops[i+1].ID()})
+			continue
+		}
+
+		// The last operator may output to the default output
+		if op.CanOutput() && c.DefaultOutput != nil {
+			ops = append(ops, c.DefaultOutput)
+			op.SetOutputIDs([]string{ops[i+1].ID()})
+		}
 	}
 
-	if defaultOperator != nil && operators[len(operators)-1].CanOutput() {
-		operators = append(operators, defaultOperator)
-	}
-
-	if err := SetOutputIDs(operators, buildsMulti); err != nil {
-		return nil, err
-	}
-
-	return operators, nil
+	return NewDirectedPipeline(ops)
 }
 
-func (c Config) dedeplucateIDs() {
+func dedeplucateIDs(ops []operator.Config) {
 	typeMap := make(map[string]int)
-	for _, op := range c {
+	for _, op := range ops {
 		if op.Type() != op.ID() {
 			continue
 		}
@@ -66,8 +96,8 @@ func (c Config) dedeplucateIDs() {
 		}
 		newID := fmt.Sprintf("%s%d", op.Type(), typeMap[op.Type()])
 
-		for j := 0; j < len(c); j++ {
-			if newID == c[j].ID() {
+		for j := 0; j < len(ops); j++ {
+			if newID == ops[j].ID() {
 				j = 0
 				typeMap[op.Type()]++
 				newID = fmt.Sprintf("%s%d", op.Type(), typeMap[op.Type()])
@@ -77,47 +107,4 @@ func (c Config) dedeplucateIDs() {
 		typeMap[op.Type()]++
 		op.SetID(newID)
 	}
-}
-
-// BuildPipeline will build a pipeline from the config.
-func (c Config) BuildPipeline(bc operator.BuildContext, defaultOperator operator.Operator) (*DirectedPipeline, error) {
-	operators, err := c.BuildOperators(bc, defaultOperator)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewDirectedPipeline(operators)
-}
-
-// SetOutputIDs Loops through all the operators and sets a default output to the next operator in the slice.
-// Additionally, if the output is set to a plugin, it sets the output to the first operator in the plugins pipeline.
-func SetOutputIDs(operators []operator.Operator, buildsMulti map[string]string) error {
-	for i, op := range operators {
-		// because no output is specified at this point for the last operator,
-		// it will always be empty and there is nothing after it to automatically point towards, so we break the loop
-		if i+1 == len(operators) {
-			break
-		}
-
-		if len(op.GetOutputIDs()) == 0 {
-			op.SetOutputIDs([]string{operators[i+1].ID()})
-			continue
-		}
-
-		// Check if there are any plugins within the outputIDs of the operator. If there are, change the output to be the first op in the plugin
-		allOutputs := []string{}
-		pluginFound := false
-		for _, id := range op.GetOutputIDs() {
-			if pid, ok := buildsMulti[id]; ok {
-				id = pid
-				pluginFound = true
-			}
-			allOutputs = append(allOutputs, id)
-		}
-
-		if pluginFound {
-			op.SetOutputIDs(allOutputs)
-		}
-	}
-	return nil
 }
